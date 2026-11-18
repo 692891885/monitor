@@ -76,14 +76,14 @@ KEYWORDS = {
 EXCLUDE = ["请问", "求问", "怎么弄", "什么意思", "被骗", "投诉", "举报", "回收"]
 
 # ---------- 推送配置 ----------
-MAIL_TO = os.environ.get("MAIL_TO") or ""
+MAIL_TO = "692891885@qq.com"
 MAIL_SMTP = "smtp.qq.com"
 MAIL_PORT = 465
-MAIL_USER = os.environ.get("MAIL_USER") or ""
-MAIL_PASS = os.environ.get("MAIL_PASS") or ""
+MAIL_USER = "692891885@qq.com"
+MAIL_PASS = "fdarahrbgnfpbcci"
 
-DINGTALK_WEBHOOK = os.environ.get("DINGTALK_WEBHOOK") or ""
-DINGTALK_SECRET = os.environ.get("DINGTALK_SECRET") or ""
+DINGTALK_WEBHOOK = ""
+DINGTALK_SECRET = ""
 DESKTOP_NOTIFY = True
 # ===========================================
 
@@ -314,18 +314,51 @@ def notify(title, body):
     log("  已推送: %s" % ("、".join(sent) if sent else "（无渠道）"))
 
 
+PUSHED_FILE = os.path.join(HERE, "pushed_tids.json")
+
+
 def load_seen():
-    if os.path.exists(SEEN_FILE):
-        try:
-            return set(json.load(open(SEEN_FILE, encoding="utf-8")))
-        except Exception:
-            pass
-    return set()
+    """已看过/已推送的帖子 ID（去重用）"""
+    merged = set()
+    for f in (SEEN_FILE, PUSHED_FILE):
+        if os.path.exists(f):
+            try:
+                d = json.load(open(f, encoding="utf-8"))
+                if isinstance(d, list):
+                    merged.update(str(x) for x in d)
+                elif isinstance(d, dict):
+                    merged.update(str(k) for k in d.keys())
+            except Exception:
+                pass
+    return merged
 
 
 def save_seen(s):
     try:
-        json.dump(list(s)[-3000:], open(SEEN_FILE, "w", encoding="utf-8"))
+        json.dump(list(s)[-5000:], open(SEEN_FILE, "w", encoding="utf-8"))
+    except Exception:
+        pass
+
+
+def save_pushed(tids, titles=None):
+    """单独记录已推送过的帖子（含时间），用于审计和永久去重"""
+    d = {}
+    if os.path.exists(PUSHED_FILE):
+        try:
+            d = json.load(open(PUSHED_FILE, encoding="utf-8"))
+            if not isinstance(d, dict):
+                d = {}
+        except Exception:
+            d = {}
+    now = time.strftime("%Y-%m-%d %H:%M:%S")
+    for t in tids:
+        d[str(t)] = (titles or {}).get(t, now)
+    # 只保留最近 2000 条
+    if len(d) > 2000:
+        items = sorted(d.items(), key=lambda x: x[1])[-2000:]
+        d = dict(items)
+    try:
+        json.dump(d, open(PUSHED_FILE, "w", encoding="utf-8"), ensure_ascii=False)
     except Exception:
         pass
 
@@ -364,10 +397,11 @@ def check_once(seen, first_run=False):
     log("  板块 %d 条 | 窗口内(%d分) %d 条 | 新帖 %d 条 | 历史均值 %.0f"
         % (len(items), WINDOW_MIN, len(win_items), len(new_items), avg))
 
-    # 评分
+    # 评分：只评估尚未推送过的帖子，避免同一帖反复提醒
     win_count = len(win_items)
+    fresh_items = [it for it in win_items if it["tid"] not in seen]
     hits = []
-    for it in win_items:
+    for it in fresh_items:
         title = it["title"]
         if any(x in title for x in EXCLUDE):
             continue
@@ -403,10 +437,12 @@ def check_once(seen, first_run=False):
         lines.append("")
         lines.append("板块地址：%s%s" % (BASE, BOARD))
         notify("🎣 卡农放水信号（%.1f分）" % total, "\n".join(lines))
-        # 记录已通知
-        for s, it, w in hits:
+        # 记录已通知：窗口内所有帖子都标记，避免同一批再次触发
+        for it in win_items:
             seen.add(it["tid"])
         save_seen(seen)
+        save_pushed([it["tid"] for it in win_items],
+                    {it["tid"]: it["title"][:40] for it in win_items})
         return True
 
     for it in items:
@@ -424,27 +460,7 @@ def check_once(seen, first_run=False):
     return False
 
 
-def burst(seen, rounds=7, gap=40):
-    """连续检查多轮（给 GitHub Actions 这类低频定时任务用）
-    5 分钟内每 40 秒查一次，共 7 轮，覆盖整个间隔
-    """
-    log("BURST 模式：连查 %d 轮，间隔 %ds" % (rounds, gap))
-    for i in range(rounds):
-        log("--- 第 %d/%d 轮 ---" % (i + 1, rounds))
-        try:
-            check_once(seen)
-        except Exception as e:
-            log("  轮次异常: %s" % repr(e)[:80])
-        if i < rounds - 1:
-            time.sleep(gap)
-    log("BURST 结束")
-
-
 def main():
-    if len(sys.argv) > 1 and sys.argv[1] == "burst":
-        seen = load_seen()
-        burst(seen)
-        return
     once = len(sys.argv) > 1 and sys.argv[1] == "once"
     test = len(sys.argv) > 1 and sys.argv[1] == "test"
 
