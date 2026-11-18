@@ -39,7 +39,7 @@ BASE = "https://www.51kanong.com"
 BOARD = "/yh-169-1.htm"
 
 # 多久看一次（秒）。建议 60~90，太快容易被站方拦
-INTERVAL = 75
+INTERVAL = 30
 
 # 滑动窗口（分钟）：统计这段时间内的帖子
 WINDOW_MIN = 10
@@ -460,7 +460,23 @@ def check_once(seen, first_run=False):
     return False
 
 
+def burst(seen, rounds=12, gap=25):
+    """连查多轮，适配低频定时任务（12轮×25秒≈5分钟）"""
+    log("BURST 模式：连查 %d 轮，间隔 %ds" % (rounds, gap))
+    for i in range(rounds):
+        try:
+            check_once(seen)
+        except Exception as e:
+            log("  轮次异常: %s" % repr(e)[:80])
+        if i < rounds - 1:
+            time.sleep(gap)
+    log("BURST 结束")
+
+
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "burst":
+        burst(load_seen())
+        return
     once = len(sys.argv) > 1 and sys.argv[1] == "once"
     test = len(sys.argv) > 1 and sys.argv[1] == "test"
 
