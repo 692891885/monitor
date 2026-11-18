@@ -3,7 +3,7 @@ name: 放水监控
 on:
   schedule:
     # 每 5 分钟跑一次（GitHub 最短间隔）
-    - cron: '*/5 * * * *'
+    - cron: '*/3 * * * *'
   workflow_dispatch:   # 也可以手动点按钮运行
 
 jobs:
@@ -37,7 +37,7 @@ jobs:
             monitor-state-
 
       # ---------- 卡农放水信号 ----------
-      - name: 卡农放水监控（连查7轮）
+      - name: 卡农放水监控（连查12轮）
         env:
           MAIL_TO: ${{ secrets.MAIL_TO }}
           MAIL_USER: ${{ secrets.MAIL_USER }}
@@ -50,7 +50,7 @@ jobs:
         continue-on-error: true
 
       # ---------- 京东券监控 ----------
-      - name: 京东券监控（连查7轮）
+      - name: 京东券监控（连查12轮）
         env:
           MAIL_TO: ${{ secrets.MAIL_TO }}
           MAIL_USER: ${{ secrets.MAIL_USER }}
