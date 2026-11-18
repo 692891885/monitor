@@ -38,7 +38,7 @@ import urllib.request
 ACTIVITY_URL = "https://pro.m.jd.com/mall/active/2BuMtujoMx1EPnFvUrUpsrYucqUK/index.html"
 
 # 监控间隔（秒）。别太快，建议 60~120 秒
-INTERVAL = 120
+INTERVAL = 45
 
 # 要监控的品牌关键词（出现这些名字的券就会检查）
 WATCH_BRANDS = ["华莱士", "塔斯汀"]
@@ -49,15 +49,15 @@ BARK_URL = ""          # 例：https://api.day.app/你的key
 # ---------- 钉钉机器人 ----------
 # 在钉钉群 → 群设置 → 智能群助手 → 添加机器人 → 自定义
 # 复制 Webhook 地址，如果开了"加签"，把密钥也填上
-DINGTALK_WEBHOOK = os.environ.get("DINGTALK_WEBHOOK") or ""
-DINGTALK_SECRET = os.environ.get("DINGTALK_SECRET") or ""   # 可选，开了加签才需要
+DINGTALK_WEBHOOK = ""
+DINGTALK_SECRET = ""   # 可选，开了加签才需要
 
 # ---------- 邮箱 ----------
-MAIL_TO = os.environ.get("MAIL_TO") or ""           # 收件邮箱，多个用逗号分隔
+MAIL_TO = "692891885@qq.com"           # 收件邮箱，多个用逗号分隔
 MAIL_SMTP = "smtp.qq.com"         # 例：smtp.qq.com / smtp.163.com
 MAIL_PORT = 465        # SSL 一般 465，STARTTLS 用 587
-MAIL_USER = os.environ.get("MAIL_USER") or ""         # 发件邮箱
-MAIL_PASS = os.environ.get("MAIL_PASS") or ""         # 邮箱授权码（不是登录密码！）
+MAIL_USER = "692891885@qq.com"         # 发件邮箱
+MAIL_PASS = "fdarahrbgnfpbcci"         # 邮箱授权码（不是登录密码！）
 SERVERCHAN_KEY = ""    # 例：SCT123456Txxxxxxxx
 WECOM_WEBHOOK = ""     # 例：https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx
 DESKTOP_NOTIFY = True  # 本机弹窗（需要 plyer，没装会自动跳过）
@@ -329,13 +329,12 @@ def check_once(state, first_run=False):
     return False
 
 
-def burst(state, rounds=7, gap=40):
-    """连查多轮，适配低频定时任务"""
+def burst(state, rounds=12, gap=25):
+    """连查多轮，适配低频定时任务（12轮×25秒≈5分钟）"""
     log("BURST 模式：连查 %d 轮，间隔 %ds" % (rounds, gap))
     for i in range(rounds):
         try:
             check_once(state)
-            save_state(state)
         except Exception as e:
             log("  轮次异常: %s" % repr(e)[:80])
         if i < rounds - 1:
@@ -345,8 +344,7 @@ def burst(state, rounds=7, gap=40):
 
 def main():
     if len(sys.argv) > 1 and sys.argv[1] == "burst":
-        st = load_state()
-        burst(st)
+        burst(load_state())
         return
     once = len(sys.argv) > 1 and sys.argv[1] == "once"
     log("=" * 52)
