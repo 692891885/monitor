@@ -1,0 +1,63 @@
+name: 放水监控
+
+on:
+  schedule:
+    # 每 5 分钟跑一次（GitHub 最短间隔）
+    - cron: '*/5 * * * *'
+  workflow_dispatch:   # 也可以手动点按钮运行
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装依赖
+        run: |
+          pip install --quiet plyer || true
+
+      # ---------- 恢复上次的状态（避免重复通知）----------
+      - name: 恢复状态缓存
+        uses: actions/cache@v4
+        with:
+          path: |
+            kanong/seen_tids.json
+            kanong/kanong_state.json
+            jdmon/monitor_state.json
+          key: monitor-state-${{ github.run_id }}
+          restore-keys: |
+            monitor-state-
+
+      # ---------- 卡农放水信号 ----------
+      - name: 卡农放水监控（连查7轮）
+        env:
+          MAIL_TO: ${{ secrets.MAIL_TO }}
+          MAIL_USER: ${{ secrets.MAIL_USER }}
+          MAIL_PASS: ${{ secrets.MAIL_PASS }}
+          DINGTALK_WEBHOOK: ${{ secrets.DINGTALK_WEBHOOK }}
+          DINGTALK_SECRET: ${{ secrets.DINGTALK_SECRET }}
+        run: |
+          cd kanong
+          python kanong_monitor.py burst
+        continue-on-error: true
+
+      # ---------- 京东券监控 ----------
+      - name: 京东券监控（连查7轮）
+        env:
+          MAIL_TO: ${{ secrets.MAIL_TO }}
+          MAIL_USER: ${{ secrets.MAIL_USER }}
+          MAIL_PASS: ${{ secrets.MAIL_PASS }}
+          DINGTALK_WEBHOOK: ${{ secrets.DINGTALK_WEBHOOK }}
+          DINGTALK_SECRET: ${{ secrets.DINGTALK_SECRET }}
+        run: |
+          cd jdmon
+          python jd_coupon_monitor.py burst
+        continue-on-error: true
